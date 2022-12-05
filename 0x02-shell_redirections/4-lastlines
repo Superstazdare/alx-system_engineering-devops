@@ -1,0 +1,1 @@
+#!/bin/bash\10 cat /etc/passwd
