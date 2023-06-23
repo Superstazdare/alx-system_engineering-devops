@@ -1,7 +1,7 @@
 # Install a package using Puppet
 
 exec { 'install flask':
-  command => '/usr/bin/apt-get install -y ruby'
+  command => '/usr/bin/apt-get install -y flask'
 }
 
 exec { 'install puppet-lint':
