@@ -1,61 +1,67 @@
 #!/usr/bin/python3
-""" Count it! """
-from requests import get
-
-REDDIT = "https://www.reddit.com/"
-HEADERS = {'user-agent': 'my-app/0.0.1'}
+"""This module queries the reddit API"""
+import requests
+from sys import argv
 
 
-def count_words(subreddit, word_list, after="", word_dic={}):
+def recurse_count(subreddit, hot_list=[], after=None):
+    """This function queries the reddit API recursively
     """
-    Returns a list containing the titles of all hot articles for a
-    given subreddit. If no results are found for the given subreddit,
-    the function should return None.
+    url = "https://www.reddit.com/r/{}/hot.json".format(subreddit)
+    payload = {"after": after, "limit": 100}
+    headers = {"User-Agent": "Python/requests"}
+
+    try:
+        req = requests.get(url, headers=headers, params=payload,
+                           allow_redirects=False)
+        if req.status_code == 200:
+            data = req.json()
+            after = data.get("data")["after"]
+            for post in data.get("data")["children"]:
+                hot_list.append(post.get("data")["title"])
+            if after:
+                return recurse_count(subreddit, hot_list, after)
+            else:
+                return hot_list
+        else:
+            return None
+    except requests.exceptions.JSONDecodeError:
+        pass
+
+
+def count_words(subreddit, word_list):
+    """This function queries the reddit API and
+    sorts a list of words by occurences
     """
-    if not word_dic:
+    word_dict = {}
+
+    all_titles = recurse_count(subreddit)
+    word_list = [w.lower() for w in word_list]
+
+    # Only parse responses that not None
+    if all_titles:
         for word in word_list:
-            word_dic[word] = 0
+            count = 0
+            for title in all_titles:
 
-    if after is None:
-        word_list = [[key, value] for key, value in word_dic.items()]
-        word_list = sorted(word_list, key=lambda x: (-x[1], x[0]))
-        for w in word_list:
-            if w[1]:
-                print("{}: {}".format(w[0].lower(), w[1]))
-        return None
+                # convert words to lowercase for comparison
+                title = [w.lower() for w in title.split()]
 
-    url = REDDIT + "r/{}/hot/.json".format(subreddit)
+                # Only count for present words in response
+                if word in title:
+                    for w in title:
+                        if word == w:
+                            count += 1
+            # Only add words that are present to dictionary
+            if count:
 
-    params = {
-        'limit': 100,
-        'after': after
-    }
-
-    r = get(url, headers=HEADERS, params=params, allow_redirects=False)
-
-    if r.status_code != 200:
-        return None
-
-    try:
-        js = r.json()
-
-    except ValueError:
-        return None
-
-    try:
-
-        data = js.get("data")
-        after = data.get("after")
-        children = data.get("children")
-        for child in children:
-            post = child.get("data")
-            title = post.get("title")
-            lower = [s.lower() for s in title.split(' ')]
-
-            for w in word_list:
-                word_dic[w] += lower.count(w.lower())
-
-    except:
-        return None
-
-    count_words(subreddit, word_list, after, word_dic)
+                """If a word is duplicated in the function parameter
+                add all the occurrences
+                """
+                if word_dict.get(word):
+                    count += word_dict[word]
+                word_dict[word] = count
+        sorted_dict = dict(sorted(word_dict.items(),
+                           key=lambda item: item[1], reverse=True))
+        for k, v in sorted_dict.items():
+            print("{}: {:d}".format(k, v))
